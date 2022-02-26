@@ -1,0 +1,116 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Reference Architecture to deploy EC2 instance in the region of my choice.
+
+Metadata:
+
+  Authors:
+    Description: Amena Ambomo Agnes Abanda (amenadiane@yahoo.ca)
+
+
+Parameters:
+
+  EnvironmentType:
+    Description: Type for my environment
+    Type: String
+    Default: Test
+    AllowedValues:
+      - Test
+      - Prod
+    ConstraintDescription: must be Test or Prod
+
+  KeyName:
+    Description: Name of an existing EC2 keypair to enable SSHaccess to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair
+    Default: amena-us-west-2-keypair
+
+  MyVPC: 
+    Description: VPC to operate in
+    Type: AWS::EC2::VPC::Id
+
+  SecurityGroup: 
+    Description: allowed security group
+    Type: AWS::EC2::SecurityGroup::GroupName
+    ConstraintDescription: must be the name of an existing security group
+
+  SubnetIDs: 
+    Description: Subnet IDs that is a list of Subnet ID
+    Type: AWS::EC2::Subnet::Id
+   
+  
+
+  InstanceType:
+    Description: WebServer EC2 instance type (has default, AllowedValues)
+    Type: String
+    Default: t3.micro
+    AllowedValues: #possible values
+      - t1.micro
+      - t2.nano
+      - t3.micro
+      - t2.small
+    ConstraintDescription: must be a valid EC2 instance type.
+  ImageId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+# Mappings:    
+
+  # RegionMap: 
+  #   us-east-1:
+  #     HVM64: ami-0ff8a91507f77f867
+  #     HVMG2: ami-0a584ac55a7631c0c
+  #   us-west-1:
+  #     HVM64: ami-0bdb828fd58c52235
+  #     HVMG2: ami-066ee5fd4a9ef77f1
+  #   eu-west-1:
+  #     HVM64: ami-047bb4163c506cd98
+  #     HVMG2: ami-0a7c483d527806435
+  #   ap-northeast-1:
+  #     HVM64: ami-06cd52961ce9f0d85
+  #     HVMG2: ami-053cdd503598e4a9d
+  #   ap-southeast-1:
+  #     HVM64: ami-08569b978cc4dfa10
+  #     HVMG2: ami-0be9df32ae9f92309
+
+Resources:
+ 
+  MyEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MyEC2Instance
+
+  MyEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ImageId
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      Tags: 
+        - Key: "Name"
+          Value: "Webserver"    
+      SecurityGroupIds: 
+        -  !ImportValue SampleNetworkCrossStack-SecurityGroupID
+      SubnetId: !ImportValue SampleNetworkCrossStack-SubnetID
+      UserData:
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y httpd.x86_64
+            systemctl start httpd.service
+            systemctl enable httpd.service
+            echo "Hello World from amena webpage" > /var/www/html/index.html
+
+Outputs: 
+  PrivateIpAddress:
+    Description: My privateIpV4
+    Value: !GetAtt MyEC2Instance.PrivateIp
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateIpAddress"
+  PublicDnsName:
+    Description: My PublicDnsName
+    Value: !GetAtt MyEC2Instance.PublicDnsName
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicDnsName"    
